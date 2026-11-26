@@ -402,6 +402,19 @@ h1,h2{text-wrap:balance}
 .brand-lock{position:absolute;left:64px;bottom:34px;font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.06em;color:#f6e7cf;z-index:5}
 .brand-lock small{display:block;font-family:var(--mono);font-weight:400;font-size:13px;letter-spacing:.14em;color:#bfa585;margin-top:6px;text-transform:uppercase}
 
+/* ---------- slide 12 call to action ---------- */
+.t12{position:absolute;left:96px;top:100px;font-size:100px;color:var(--ink)}
+.t12 .c{color:var(--paper);text-shadow:7px 6px 0 var(--cobalt)}
+.p12{position:absolute;left:96px;top:384px;width:900px;margin:0;font-family:var(--serif);font-style:italic;font-weight:400;font-size:56px;line-height:1.18;letter-spacing:-.015em;color:var(--ink);text-wrap:balance}
+.cta12{position:absolute;left:96px;top:628px;font-family:var(--display);font-weight:800;font-size:76px;letter-spacing:-.03em;color:var(--ink)}
+.cta12 span{background:var(--yellow);padding:8px 28px 12px;display:inline-block;transform:rotate(-2deg);box-shadow:8px 7px 0 var(--cobalt)}
+.env12{position:absolute;left:1020px;top:330px;width:460px;height:300px;transform:rotate(4deg);background:var(--paper);border:3px solid var(--ink);border-radius:8px;box-shadow:12px 11px 0 rgba(28,27,43,.85)}
+.env12::before{content:"";position:absolute;left:-3px;right:-3px;top:-3px;height:182px;background:var(--cobalt);clip-path:polygon(0 0,100% 0,50% 100%);border-radius:8px 8px 0 0}
+.env12 .stamp{position:absolute;right:26px;top:22px;width:92px;height:112px;transform:rotate(4deg);z-index:2}
+.env12 .stamp svg{width:100%;height:100%;display:block}
+.env12 .ad{position:absolute;left:44px;bottom:42px;font-family:var(--hand);font-weight:700;font-size:40px;line-height:1.1;color:var(--ink)}
+.on .env12{animation:rise 1s var(--ease) 1.2s both}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01s!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.2s!important;transition-delay:0s!important}
   .slide{scale:1!important}
@@ -662,7 +675,15 @@ h1,h2{text-wrap:balance}
     <div class="foot11 a" style="--d:8.6s">HELP WITH THE WORDS &nbsp;·&nbsp; THE HEART IS YOURS</div>
   </section>
 
-  <!-- 12 CLOSE -->
+  <!-- 12 CALL TO ACTION -->
+  <section class="slide riso bg-coral paper" data-name="cta" data-warm data-dur="4200">
+    <h2 class="t12 a" style="--d:.5s">We’re all a<br>little <span class="c">lonely.</span></h2>
+    <p class="p12 a" style="--d:1.5s">Be the reason someone isn’t&nbsp;today.</p>
+    <div class="env12 a" style="--d:1.2s"><div class="stamp" data-stamp="b"></div><div class="ad">Sam Rivera<br>14 Linden Street</div></div>
+    <div class="cta12 a pop" style="--d:2.7s"><span>Send the card.</span></div>
+  </section>
+
+  <!-- 13 CLOSE -->
   <section class="slide" data-name="close" data-warm data-dur="11200">
     <div class="night bgl"></div>
     <canvas id="dust" width="1600" height="900"></canvas>
@@ -680,14 +701,14 @@ h1,h2{text-wrap:balance}
       <circle cx="115" cy="115" r="100" fill="none" stroke="#ffcf7a" stroke-width="4"/>
       <circle cx="115" cy="115" r="64" fill="none" stroke="#ffcf7a" stroke-width="2"/>
       <text font-family="JetBrains Mono, monospace" font-size="17" letter-spacing="5" fill="#ffcf7a"><textPath href="#pmc">SENT BY HAND · RECEIVED BY HEART ·</textPath></text>
-      <text x="115" y="108" text-anchor="middle" font-family="Unbounded, Arial Black, sans-serif" font-weight="800" font-size="22" fill="#ffcf7a">12</text>
-      <text x="115" y="134" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="3" fill="#ffcf7a">OF 12</text>
+      <text x="115" y="108" text-anchor="middle" font-family="Unbounded, Arial Black, sans-serif" font-weight="800" font-size="22" fill="#ffcf7a">13</text>
+      <text x="115" y="134" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="3" fill="#ffcf7a">OF 13</text>
     </svg>
   </section>
 
   <div id="hud">
     <div id="unread">UNREAD<b id="unreadN">0</b></div>
-    <div id="stampCounter"><svg viewBox="0 0 86 102" id="ctrSvg"></svg><div class="num"><i>STAMP</i><span id="cNum">03</span><small>OF 12</small></div></div>
+    <div id="stampCounter"><svg viewBox="0 0 86 102" id="ctrSvg"></svg><div class="num"><i>STAMP</i><span id="cNum">03</span><small>OF 13</small></div></div>
   </div>
   <div id="stampRow"></div>
   <div id="hint"><i></i>CLICK TO BEGIN · SOUND ON</div>
@@ -944,7 +965,7 @@ const Score = (() => {
     {cold:.55,tick:.22,blip:.05},{cold:.85,tick:.5,blip:.22},{freeze:1},
     {warm:.55,piano:.25,arp:0,cut:.35},{warm:.6,piano:.32,arp:.22,cut:.45},{warm:.66,piano:.4,arp:.36,cut:.55},
     {warm:.58,piano:.28,arp:.16,cut:.4},{warm:.74,piano:.45,arp:.5,cut:.65},{warm:.8,piano:.5,arp:.56,cut:.7},
-    {warm:.78,piano:.45,arp:.42,cut:.62},{warm:.72,piano:.42,arp:.22,cut:.55,res:1},{close:1}];
+    {warm:.78,piano:.45,arp:.42,cut:.62},{warm:.72,piano:.42,arp:.22,cut:.55,res:1},{warm:.78,piano:.45,arp:.3,cut:.62,res:1,swell:1},{close:1}];
   let P={}, prog=PROG, pend=null, clock=0, stepN=0, bar=-1, warmOn=false, skipPad=false, chd='I';
   const cn=(...a)=>{ for(let i=0;i<a.length-1;i++) a[i].connect(a[i+1]); };
   function ramp(p,v,tau){ const t=ctx.currentTime;
@@ -1030,6 +1051,10 @@ const Score = (() => {
         if(i===3){
           cue(t=>flap(t),1500); cue(t=>slideL(t,1.6),2450); cue(t=>motif(t),4100);
           [[4100,.6],[4750,1],[5800,1],[6850,1],[7900,.9]].forEach(([ms,d])=>cue(t=>pencil(t,d),ms));
+        }
+        if(s.swell){
+          cue(t=>{ const lp=pchord('I',t,BEAT*5,2,500,.017); if(lp) lp.frequency.exponentialRampToValueAtTime(2400,t+2.4); },500);
+          [72,76,79,84].forEach((m,k)=>cue(t=>key(m,t,.42,3.2,true),2450+k*260));
         }
         if(i===10){ [[5100,.7],[5800,1],[6800,1],[7800,.8]].forEach(([ms,d])=>cue(t=>pencil(t,d),ms)); }
       }
