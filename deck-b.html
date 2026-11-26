@@ -952,21 +952,44 @@ const Dust = (() => {
 /* ---------- SCORE: Web Audio, fully synthesized ---------- */
 const Score = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
-  let ctx=null, out, comp, mus, sfx, cold, pad, keys, fin, wob, nb, vox=0, idx=0, cues=[], landAt=0, timer=null, muted=false;
+  let ctx=null, out, comp, mus, sfx, cold, pad, keys, fin, wob, nb, vox=0, idx=0, cues=[], landAt=0, timer=null, muted=false, WV=null;
   try{ muted = localStorage.getItem('deckB.muted')==='1'; }catch(e){}
-  const BEAT=60/66, STEP=BEAT/2, OUT=.8;
+  const BEAT=60/66, STEP=BEAT/2, OUT=.7;
   const mf=m=>440*Math.pow(2,(m-69)/12);
-  const CH={I:[48,55,64,67,74],iii:[52,59,64,67,71],IV:[53,60,65,69,72],iv:[53,60,65,68,72]};
-  const AR={I:[72,76,79,74,84,79,76,67],iii:[71,76,79,74,83,79,76,64],IV:[72,77,81,76,84,81,77,69],iv:[72,77,80,75,84,80,77,68]};
-  const RT={I:36,iii:40,IV:41,iv:41};
-  const PROG=['I','iii','IV','iv'], RES=['IV','iv','I','I'];
-  const MOTIF=[[0,79],[.45,88],[.9,86],[1.36,84],[2.05,86],[2.5,79],[2.95,84]];
+  /* ----- original theme: 8 bars in C, I - V/3 - vi - IV | I/3 - IV - ii - V - I ----- */
+  /* chord: b = bass, a = left-hand arpeggio tones, p = string-pad voicing */
+  const CHD={
+    C:  {b:36,a:[55,60,64],p:[48,55,60,64,67]},
+    GB: {b:35,a:[55,62,67],p:[47,55,62,67,71]},
+    Am: {b:33,a:[60,64,67],p:[45,57,60,64,67]},
+    F:  {b:29,a:[57,60,64],p:[41,53,57,60,64]},
+    CE: {b:40,a:[55,60,67],p:[40,55,60,64,67]},
+    Fm: {b:29,a:[56,60,65],p:[41,53,56,60,65]},
+    Dm: {b:38,a:[57,60,65],p:[38,50,57,60,65]},
+    G:  {b:31,a:[59,62,67],p:[43,55,59,62,67]},
+    Cs: {b:36,a:[55,62,64],p:[36,48,55,62,64,67]}
+  };
+  /* melody notes: [eighth-step in bar, MIDI, length in beats] */
+  const M1=[[0,79,1.5],[3,76,.5],[4,79,1],[6,84,1]];
+  const M2=[[0,83,2],[4,81,1],[6,79,1]];
+  const M3=[[0,81,1.5],[3,79,.5],[4,76,1],[6,79,1]];
+  const M4=[[0,77,2],[4,76,1],[6,74,1]];
+  const M5=[[0,76,1.5],[3,79,.5],[4,84,2]];
+  const M6=[[0,81,1.5],[3,79,.5],[4,77,2]];
+  const M6b=[[0,80,1.5],[3,79,.5],[4,77,2]];
+  const M7=[[0,74,1],[2,77,1],[4,79,1],[6,83,1]];
+  const M8=[[0,84,4]];
+  const MAIN=[{c:'C',m:M1},{c:'GB',m:M2},{c:'Am',m:M3},{c:'F',m:M4},{c:'CE',m:M5},{c:'F',m:M6},{c:'Dm',m:M7},{c:'Cs',m:M8}];
+  const TURN=[{c:'C',m:M1},{c:'GB',m:M2},{c:'Am',m:M3},{c:'F',m:M4},{c:'CE',m:M5},{c:'Fm',m:M6b},{c:'Dm',m:M7},{c:'Cs',m:M8}];
+  const ARP={2:0,3:1,4:2,5:1,6:0,7:1};
+  /* per-slide state: warm = piano level, lh = left-hand fullness, str = string swell, dbl = octave below melody, high = octave above melody */
   const SC=[
     {cold:.55,tick:.22,blip:.05},{cold:.85,tick:.5,blip:.22},{freeze:1},
-    {warm:.55,piano:.25,arp:0,cut:.35},{warm:.6,piano:.32,arp:.22,cut:.45},{warm:.66,piano:.4,arp:.36,cut:.55},
-    {warm:.58,piano:.28,arp:.16,cut:.4},{warm:.74,piano:.45,arp:.5,cut:.65},{warm:.8,piano:.5,arp:.56,cut:.7},
-    {warm:.78,piano:.45,arp:.42,cut:.62},{warm:.72,piano:.42,arp:.22,cut:.55,res:1},{warm:.78,piano:.45,arp:.3,cut:.62,res:1,swell:1},{close:1}];
-  let P={}, prog=PROG, pend=null, clock=0, stepN=0, bar=-1, warmOn=false, skipPad=false, chd='I';
+    {warm:.62,lh:.3,str:.1},{warm:.68,lh:.45,str:.22},{warm:.72,lh:.6,str:.3},
+    {warm:.66,lh:.4,str:.4},{warm:.78,lh:.72,str:.5,dbl:.3},{warm:.82,lh:.8,str:.6,dbl:.5},
+    {warm:.82,lh:.85,str:.66,dbl:.55},{warm:.8,lh:.7,str:.74,dbl:.55,res:1},
+    {warm:.86,lh:.9,str:.95,dbl:.7,high:.8,res:1,swell:1},{close:1}];
+  let P={}, prog=MAIN, pend=null, clock=0, stepN=0, bar=-1, warmOn=false, skipPad=false;
   const cn=(...a)=>{ for(let i=0;i<a.length-1;i++) a[i].connect(a[i+1]); };
   function ramp(p,v,tau){ const t=ctx.currentTime;
     try{ if(p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t); else { const c=p.value; p.cancelScheduledValues(t); p.setValueAtTime(c,t); } }catch(e){}
@@ -974,27 +997,33 @@ const Score = (() => {
   function O(type,f,t,dest,det){ const o=ctx.createOscillator(); o.type=type; o.frequency.setValueAtTime(f,t); if(det) o.detune.setValueAtTime(det,t);
     wob.connect(o.detune); o.connect(dest); vox++;
     o.onended=()=>{ vox--; try{ wob.disconnect(o.detune); }catch(e){} try{ o.disconnect(); }catch(e){} }; return o; }
-  function N(t,dur,type,f,f2,q,gain,dest,att){ if(vox>56) return; const s=ctx.createBufferSource(); s.buffer=nb; s.loop=true;
+  function N(t,dur,type,f,f2,q,gain,dest,att){ if(vox>80) return; const s=ctx.createBufferSource(); s.buffer=nb; s.loop=true;
     const b=ctx.createBiquadFilter(); b.type=type; b.frequency.setValueAtTime(f,t); if(f2) b.frequency.exponentialRampToValueAtTime(f2,t+dur); b.Q.value=q;
     const g=ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gain,t+(att||.004)); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
     cn(s,b,g,dest); s.start(t,Math.random()*1.5); s.stop(t+dur+.05); vox++; s.onended=()=>{ vox--; }; }
-  function key(m,t,vel,dec,box,dest){ if(vox>46) return; const f=mf(m), g=ctx.createGain(), lp=ctx.createBiquadFilter(), pk=.075*vel;
-    lp.type='lowpass'; lp.frequency.value=box?7000:2200+vel*1200;
-    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(pk,t+.005); g.gain.exponentialRampToValueAtTime(pk*.35,t+.18); g.gain.exponentialRampToValueAtTime(.0001,t+dec);
-    cn(g,lp,dest||keys); const tg=ctx.createGain(); tg.gain.value=box?.25:.4; tg.connect(g);
-    const a=O('sine',f,t,g,0), b=O('triangle',f,t,tg,box?-6:4), end=t+dec+.05; a.start(t); b.start(t); a.stop(end); b.stop(end);
-    if(box){ const hg=ctx.createGain(); hg.gain.setValueAtTime(pk*.5,t); hg.gain.exponentialRampToValueAtTime(.0001,t+.35); hg.connect(lp);
-      const c=O('sine',f*4.02,t,hg,0); c.start(t); c.stop(t+.4); } }
-  function bass(m,t,l,dest){ if(vox>46) return; const g=ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(l,t+.06);
-    g.gain.exponentialRampToValueAtTime(.0001,t+BEAT*4.2); g.connect(dest||pad); const o=O('sine',mf(m),t,g,0); o.start(t); o.stop(t+BEAT*4.3); }
-  function pchord(ch,t,dur,att,cut,lvl,dest){ if(vox>40) return null; const lp=ctx.createBiquadFilter(), g=ctx.createGain(), end=t+dur+2.6;
+  /* felt / soft-grand piano: sampled-style partial spectrum per register, two slightly detuned strings,
+     a lowpass that closes as the note dies, a soft hammer thump and pan by pitch */
+  function pno(m,t,vel,dec,dest,pan){ if(vox>74) return; const f=mf(m);
+    const w=m<50?WV[0]:m<72?WV[1]:WV[2], lp=ctx.createBiquadFilter(), g=ctx.createGain();
+    const pk=.2*vel*(1.25-Math.min(1,m/110));
+    lp.type='lowpass'; lp.Q.value=.3; lp.frequency.setValueAtTime(Math.min(9500,f*(2.4+vel*7)),t); lp.frequency.exponentialRampToValueAtTime(Math.max(f*1.5,420),t+Math.min(dec,2.6));
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(pk,t+.005); g.gain.exponentialRampToValueAtTime(pk*.42,t+.2); g.gain.exponentialRampToValueAtTime(.0001,t+dec);
+    let tail=g; if(ctx.createStereoPanner){ const pn=ctx.createStereoPanner(); pn.pan.value=Math.max(-1,Math.min(1,pan||0)); g.connect(pn); tail=pn; }
+    tail.connect(dest||keys); lp.connect(g);
+    [[-2.2,1],[2.6,.7]].forEach(([dt,lv])=>{ const o=ctx.createOscillator(), og=ctx.createGain(); o.setPeriodicWave(w); o.frequency.setValueAtTime(f,t); o.detune.setValueAtTime(dt,t);
+      og.gain.value=lv; cn(o,og,lp); vox++; o.onended=()=>{ vox--; try{ o.disconnect(); og.disconnect(); }catch(e){} }; o.start(t); o.stop(t+dec+.06); });
+    N(t,.06,'lowpass',1800+vel*1800,0,.5,.03*vel,lp,.001); }
+  function roll(ns,t,vel,dec,dest,gap){ ns.forEach((m,k)=>pno(m,t+k*(gap||.075)+Math.random()*.012,vel*(.9+Math.random()*.2),dec,dest,(k/(ns.length-1||1))*.8-.4)); }
+  /* string / pad swell */
+  function pchord(ns,t,dur,att,cut,lvl,dest){ if(vox>66) return null; const lp=ctx.createBiquadFilter(), g=ctx.createGain(), end=t+dur+2.8;
     lp.type='lowpass'; lp.frequency.setValueAtTime(cut,t); lp.Q.value=.4;
     g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(lvl,t+att); g.gain.setValueAtTime(lvl,t+dur); g.gain.linearRampToValueAtTime(0,end-.05);
     cn(lp,g,dest||pad);
-    CH[ch].forEach(m=>{ const f=mf(m), a=O('sawtooth',f,t,lp,-7), b=O('triangle',f,t,lp,7); a.start(t); b.start(t); a.stop(end); b.stop(end); });
+    ns.forEach(m=>{ const f=mf(m), a=O('sawtooth',f,t,lp,-7), b=O('triangle',f,t,lp,7); a.start(t); b.start(t); a.stop(end); b.stop(end); });
     return lp; }
+  function swellPad(t,ns,att,hold,c0,c1,lvl,dest){ const lp=pchord(ns,t,hold,att,c0,lvl,dest); if(lp) lp.frequency.exponentialRampToValueAtTime(c1,t+att); return lp; }
   /* sfx */
-  function swish(t){ N(t,.5,'bandpass',700,2600,.8,.16,sfx,.12); }
+  function swish(t){ N(t,.5,'bandpass',700,2600,.8,.12,sfx,.12); }
   function thud(t,l){ l=l||1; const g=ctx.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.5*l,t+.005); g.gain.exponentialRampToValueAtTime(.0001,t+.38);
     g.connect(sfx); const o=ctx.createOscillator(); o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(45,t+.18); o.connect(g); o.start(t); o.stop(t+.4);
     N(t,.03,'highpass',2500,0,.7,.18*l,sfx,.001); }
@@ -1004,62 +1033,78 @@ const Score = (() => {
   function flap(t){ N(t,.14,'bandpass',2400,1800,1.2,.09,sfx,.01); N(t+.12,.22,'bandpass',1500,2600,1,.07,sfx,.02); }
   function slideL(t,d){ N(t,d,'bandpass',900,2200,.9,.08,sfx,d*.4); }
   function pencil(t,d){ for(let i=0;i<d*9;i++) N(t+i*.11+Math.random()*.03,.07,'bandpass',3200+Math.random()*800,0,2.5,.035,sfx,.01); }
-  function motif(t,dest){ MOTIF.forEach(([d,m])=>key(m,t+d,.45,1.6,true,dest)); }
   function tick(t){ N(t,.01,'highpass',6000,0,.7,.05,cold,.001); }
   function blip(t){ const f=[1568,1760,2093,2349][Math.random()*4|0];
     [0,.075].forEach((d,i)=>{ const tt=t+d, g=ctx.createGain(); g.gain.setValueAtTime(0,tt); g.gain.linearRampToValueAtTime(.03,tt+.004); g.gain.exponentialRampToValueAtTime(.0001,tt+.14);
       g.connect(cold); const o=ctx.createOscillator(); o.frequency.value=f*(i?1.335:1); o.connect(g); o.start(tt); o.stop(tt+.16); }); }
-  /* sequencer */
+  /* sequencer: left-hand arpeggios + the melody, every note a little early or late */
+  const hz=()=>(Math.random()-.5)*.022;
   function step(s,t){
     if(P.cold){ if(Math.random()<P.tick) tick(t); if(Math.random()<P.tick*.7) tick(t+STEP/2); if(Math.random()<P.blip) blip(t+Math.random()*STEP); }
     if(!warmOn) return;
     const i=s%8;
-    if(i===0){ bar++; if(pend){ prog=pend; pend=null; bar=0; } chd=prog[bar%prog.length];
-      if(!skipPad) pchord(chd,t,BEAT*4,1.3,420+2000*(P.cut||.5),.011); skipPad=false; bass(RT[chd],t,.09); }
-    const a=AR[chd];
-    if(P.piano && (i===0 || (i===3&&Math.random()<P.piano*1.4) || (i===6&&Math.random()<P.piano))) key(a[(i+bar*3)%8],t,.5+Math.random()*.2,2.2);
-    if(P.arp && i!==0 && Math.random()<P.arp) key(a[[0,2,1,3,4,3,1,2][i]],t+Math.random()*.012,.22+P.arp*.15,1.3);
+    if(i===0){ bar++; if(pend){ prog=pend; pend=null; } }
+    const B=prog[((bar%8)+8)%8], c=CHD[B.c];
+    if(i===0){ if(P.str && !skipPad) pchord(c.p,t,BEAT*4,1.5,500+2400*P.str,.004+.009*P.str,pad); skipPad=false; }
+    if(P.lh>0){
+      if(i===0){ pno(c.b,t+hz(),.46+P.lh*.14,5,keys,-.3); if(P.lh>.5) pno(c.b+12,t+.012+hz(),.3,4.5,keys,-.2); }
+      else if(ARP[i]!==undefined){
+        const strong=(i===2||i===4||i===6), pr=strong?Math.min(1,P.lh*1.35):Math.max(0,(P.lh-.4)*1.2);
+        if(Math.random()<pr) pno(c.a[ARP[i]],t+hz(),.26+P.lh*.12+Math.random()*.08,2.8,keys,.05+Math.random()*.15);
+      }
+    }
+    B.m.forEach(([st,m,d])=>{ if(st!==i) return; const v=.56+Math.random()*.16, tt=t+.012+hz(), dec=2.4+d*1.2;
+      pno(m,tt,v,dec,keys,.2);
+      if(P.dbl && Math.random()<P.dbl) pno(m-12,tt+.008,v*.5,dec+.6,keys,-.15);
+      if(P.high && Math.random()<P.high) pno(m+12,tt+.02,v*.38,dec+.8,keys,.4); });
   }
   function loop(){ if(!ctx) return; try{ const now=ctx.currentTime; if(clock<now-.2) clock=now+.05;
     while(clock<now+.3){ step(stepN,clock); clock+=STEP; stepN++; } }catch(e){} }
-  function startWarm(at,swell){ warmOn=true; clock=at; stepN=0; bar=-1; if(pend){ prog=pend; pend=null; }
-    if(swell){ const lp=pchord('I',at-1.05,BEAT*4+1.05,1,260,.013);
-      if(lp){ lp.frequency.exponentialRampToValueAtTime(1900,at+.05); lp.frequency.exponentialRampToValueAtTime(950,at+2.6); } skipPad=true; } }
+  function startWarm(at){ warmOn=true; clock=at; stepN=0; bar=-1; if(pend){ prog=pend; pend=null; } }
   const cue=(fn,ms)=>cues.push(setTimeout(()=>{ try{ if(ctx) fn(ctx.currentTime); }catch(e){} },ms));
   function apply(i,ev){
-    cues.forEach(clearTimeout); cues=[]; const s=SC[i]||{}, now=ctx.currentTime;
-    P=Object.assign({cold:0,tick:0,blip:0,warm:0,piano:0,arp:0,cut:.5},s);
+    cues.forEach(clearTimeout); cues=[]; let s=SC[i]||{}; const now=ctx.currentTime;
+    if(s.freeze && !ev) s=SC[3];
+    P=Object.assign({cold:0,tick:0,blip:0,warm:0,str:0,lh:0,dbl:0,high:0},s);
     ramp(fin.gain, s.close?1:0, s.close?.2:.4);
     if(s.freeze){
-      ramp(cold.gain,0,.06); ramp(pad.gain,0,.08); ramp(keys.gain,0,.08); warmOn=false; landAt=now+1.69; prog=PROG; pend=null;
-      pad.gain.setTargetAtTime(.6,now+.72,.35); keys.gain.setTargetAtTime(.6,now+.72,.35);
-      startWarm(landAt,true);
+      ramp(cold.gain,0,.06); ramp(pad.gain,0,.08); ramp(keys.gain,0,.08); warmOn=false; landAt=now+1.69; prog=MAIN; pend=null;
+      pad.gain.setTargetAtTime(1,now+.72,.35); keys.gain.setTargetAtTime(.62,now+.72,.35);
+      /* bloom: strings open up under the envelope landing, a soft rolled chord, then the theme begins */
+      swellPad(landAt-1.05,[36,48,55,60,64,67],1.9,4,300,2600,.014,pad);
+      cue(t=>roll([36,48,55,64,67,74],t+.02,.55,8,keys),1690);
       cue(t=>land(t),1690); cue(t=>thud(t,.8),2200);
+      startWarm(landAt+1.4); skipPad=true;
     } else if(s.close){
-      ramp(cold.gain,0,.3); ramp(pad.gain,0,.7); ramp(keys.gain,0,.7); warmOn=false; pend=null; prog=PROG;
+      ramp(cold.gain,0,.3); ramp(pad.gain,0,.7); ramp(keys.gain,0,.7); warmOn=false; pend=null; prog=MAIN;
       const t=now+.25; fin.gain.setValueAtTime(1,now+5.5); fin.gain.linearRampToValueAtTime(.0001,now+13.5);
-      pchord('I',t,8,2.6,1100,.012,fin); bass(36,t,.08,fin);
-      [60,67,72,76].forEach((m,k)=>key(m,t+.3+k*.32,.38,4.5,false,fin));
-      cue(t2=>motif(t2,fin),7200); cue(t2=>thud(t2,.9),9750);
+      swellPad(t,[36,48,55,60,64,67],2.6,6,420,1700,.015,fin);
+      roll([36,48,55,64,67],t+.05,.42,9,fin,.1);
+      [67,72,76,79].forEach((m,k)=>pno(m,t+1.5+k*.62,.34,5,fin,.2));
+      /* the last, tender chord lands with "real." */
+      cue(t2=>roll([48,55,64,72,76,79,84],t2,.36,10,fin,.11),7100);
+      cue(t2=>thud(t2,.7),9750);
     } else if(s.warm){
-      ramp(cold.gain,0,.5); ramp(pad.gain,s.warm,.8); ramp(keys.gain,s.warm,.8);
-      const want=s.res?RES:PROG;
-      if(!warmOn){ prog=want; pend=null; startWarm(now+.15,false); }
+      ramp(cold.gain,0,.5); ramp(pad.gain,1,.8); ramp(keys.gain,s.warm,.8);
+      const want=s.res?TURN:MAIN;
+      if(!warmOn){ prog=want; pend=null; startWarm(now+.15); }
       else pend=(prog!==want)?want:null;
       if(ev){
-        swish(now+.02); thud(now+.3,.8);
+        swish(now+.02); thud(now+.3,.7);
         if(i===3){
-          cue(t=>flap(t),1500); cue(t=>slideL(t,1.6),2450); cue(t=>motif(t),4100);
+          cue(t=>flap(t),1500); cue(t=>slideL(t,1.6),2450);
+          cue(t=>[84,88,91,88,96].forEach((m,k)=>pno(m,t+k*.3,.3,3.6,keys,.5)),4100);
           [[4100,.6],[4750,1],[5800,1],[6850,1],[7900,.9]].forEach(([ms,d])=>cue(t=>pencil(t,d),ms));
         }
         if(s.swell){
-          cue(t=>{ const lp=pchord('I',t,BEAT*5,2,500,.017); if(lp) lp.frequency.exponentialRampToValueAtTime(2400,t+2.4); },500);
-          [72,76,79,84].forEach((m,k)=>cue(t=>key(m,t,.42,3.2,true),2450+k*260));
+          cue(t=>swellPad(t,[48,55,60,64,67,72],2.2,3,450,3400,.02,pad),300);
+          cue(t=>roll([48,55,64,67,72,76],t,.6,7,keys,.09),2500);
+          cue(t=>[79,84,88,91,96].forEach((m,k)=>pno(m,t+k*.24,.34,4.5,keys,.1+k*.15)),2750);
         }
         if(i===10){ [[5100,.7],[5800,1],[6800,1],[7800,.8]].forEach(([ms,d])=>cue(t=>pencil(t,d),ms)); }
       }
     } else {
-      ramp(cold.gain,s.cold||0,.6); ramp(pad.gain,0,.5); ramp(keys.gain,0,.5); warmOn=false; pend=null; prog=PROG;
+      ramp(cold.gain,s.cold||0,.6); ramp(pad.gain,0,.5); ramp(keys.gain,0,.5); warmOn=false; pend=null; prog=MAIN;
     }
   }
   function init(){
@@ -1068,18 +1113,21 @@ const Score = (() => {
       ctx=new AC();
       comp=ctx.createDynamicsCompressor(); comp.threshold.value=-20; comp.knee.value=24; comp.ratio.value=3.5; comp.attack.value=.01; comp.release.value=.3;
       out=ctx.createGain(); out.gain.value=0; cn(out,comp,ctx.destination);
-      mus=ctx.createGain(); sfx=ctx.createGain(); sfx.gain.value=.5;
+      mus=ctx.createGain(); sfx=ctx.createGain(); sfx.gain.value=.32;
       cold=ctx.createGain(); pad=ctx.createGain(); keys=ctx.createGain(); fin=ctx.createGain();
       cold.gain.value=0; pad.gain.value=0; keys.gain.value=0; fin.gain.value=0;
       cold.connect(mus); pad.connect(mus); keys.connect(mus); fin.connect(mus);
       mus.connect(out); sfx.connect(out);
-      /* reverb from a generated noise impulse */
-      const rl=Math.floor(ctx.sampleRate*2.8), ib=ctx.createBuffer(2,rl,ctx.sampleRate);
-      for(let c=0;c<2;c++){ const d=ib.getChannelData(c); for(let k=0;k<rl;k++) d[k]=(Math.random()*2-1)*Math.pow(1-k/rl,2.6); }
-      const cv=ctx.createConvolver(); cv.buffer=ib; const rg=ctx.createGain(); rg.gain.value=.3;
-      mus.connect(cv); const sr=ctx.createGain(); sr.gain.value=.25; sfx.connect(sr); sr.connect(cv); cn(cv,rg,out);
+      /* reverb: generated noise impulse, predelay + darker tail (hall behind a felt piano) */
+      const rl=Math.floor(ctx.sampleRate*3.4), ib=ctx.createBuffer(2,rl,ctx.sampleRate), pre=Math.floor(ctx.sampleRate*.028);
+      for(let c=0;c<2;c++){ const d=ib.getChannelData(c); let lpz=0; for(let k=0;k<rl;k++){ const x=k/rl, a=Math.min(.97,.35+x*1.4); lpz=lpz*a+(Math.random()*2-1)*(1-a); d[k]=k<pre?0:lpz*Math.pow(1-x,2.4)*3.2; } }
+      const cv=ctx.createConvolver(); cv.buffer=ib; const rg=ctx.createGain(); rg.gain.value=.34;
+      mus.connect(cv); const sr=ctx.createGain(); sr.gain.value=.2; sfx.connect(sr); sr.connect(cv); cn(cv,rg,out);
+      /* piano spectra: rich low strings, nearly pure highs */
+      const mk=a=>{ const re=new Float32Array(a.length+1), im=new Float32Array(a.length+1); a.forEach((v,k)=>{ im[k+1]=v; }); return ctx.createPeriodicWave(re,im); };
+      WV=[mk([1,.7,.5,.34,.24,.16,.11,.08,.05,.03]),mk([1,.5,.28,.15,.09,.05,.03]),mk([1,.28,.1,.04])];
       /* tape wobble on pitch (cents) */
-      wob=ctx.createGain(); wob.gain.value=7;
+      wob=ctx.createGain(); wob.gain.value=4;
       [.6,.13].forEach((f,k)=>{ const l=ctx.createOscillator(); l.frequency.value=f; const lg=ctx.createGain(); lg.gain.value=k?.6:.4; cn(l,lg,wob); l.start(); });
       /* noise buffer */
       nb=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate); const nd=nb.getChannelData(0); for(let k=0;k<nd.length;k++) nd[k]=Math.random()*2-1;
